@@ -63,12 +63,6 @@ jobs:
             java:   "21"
             gradle: "8.8"
 
-          # Catatan loom: "Loom 1.10" yang disebut blog Fabric adalah nama
-          # rilis MINOR, bukan koordinat Maven persis. Versi pasti yang
-          # terverifikasi ada di maven.fabricmc.net adalah 1.10.3 (rilis
-          # stabil terakhir baris 1.10.x per Mar 2025). JANGAN pakai "1.10"
-          # atau "1.11" tanpa patch — Gradle akan gagal resolve plugin
-          # dengan pesan "Plugin ... was not found" (lihat histori build).
           - mc: "1.21.5"
             fabric: "0.128.1+1.21.5"
             loader: "0.16.10"
@@ -97,14 +91,6 @@ jobs:
             java:   "21"
             gradle: "8.12"
 
-          # 1.21.9: baris Loom "1.11.x" BELUM terverifikasi punya rilis
-          # stabil di Maven saat catatan ini ditulis (hanya ditemukan
-          # 1.11-SNAPSHOT). Pakai 1.10.3 sebagai fallback aman karena Loom
-          # umumnya version-independent terhadap Minecraft. Jika build ini
-          # gagal lagi dengan pesan "was not found", cek
-          # https://maven.fabricmc.net/net/fabricmc/fabric-loom/ langsung
-          # untuk nomor patch 1.11.x terbaru yang benar-benar dipublish,
-          # lalu ganti baris ini.
           - mc: "1.21.9"
             fabric: "0.134.1+1.21.9"
             loader: "0.17.2"
@@ -120,13 +106,15 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
 
+      # Override distributionUrl di wrapper properties SEBELUM setup-gradle
+      # supaya Gradle yang di-download sesuai versi matrix
+      - name: Override Gradle wrapper version
+        run: |
+          sed -i "s|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-${{ matrix.gradle }}-bin.zip|" \
+            gradle/wrapper/gradle-wrapper.properties
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: ${{ matrix.gradle }}
-
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version ${{ matrix.gradle }}
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
@@ -140,8 +128,6 @@ jobs:
           sed -i "s/^loom_version=.*/loom_version=${{ matrix.loom }}/"           gradle.properties
 
       # Untuk 1.20.1 (Java 17): turunkan release target di build.gradle
-      # Pattern sed mencari nilai actual saat ini (21), bukan angka matrix.java,
-      # supaya tetap valid walau urutan matrix entry berubah.
       - name: Set Java release target for 1.20.1
         if: matrix.mc == '1.20.1'
         run: sed -i "s/it.options.release = 21/it.options.release = 17/" build.gradle
