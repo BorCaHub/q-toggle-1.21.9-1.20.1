@@ -1,35 +1,169 @@
-name: Build Mod
+name: Build Q Toggle All Versions
 
 on: [push, workflow_dispatch]
 
 jobs:
+  # ─────────────────────────────────────────
+  # 1. Build masing-masing versi Minecraft
+  # ─────────────────────────────────────────
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── 1.20.x ──────────────────────────────────────────────
+          - mc: "1.20.1"
+            fabric: "0.92.2+1.20.1"
+            loader: "0.14.21"
+            loom:   "1.4.2"
+            java:   "17"
+            gradle: "8.8"
+
+          - mc: "1.20.2"
+            fabric: "0.91.6+1.20.2"
+            loader: "0.15.1"
+            loom:   "1.4.2"
+            java:   "21"
+            gradle: "8.8"
+
+          - mc: "1.20.4"
+            fabric: "0.97.3+1.20.4"
+            loader: "0.15.6"
+            loom:   "1.6.12"
+            java:   "21"
+            gradle: "8.8"
+
+          - mc: "1.20.6"
+            fabric: "0.100.8+1.20.6"
+            loader: "0.15.10"
+            loom:   "1.6.12"
+            java:   "21"
+            gradle: "8.8"
+
+          # ── 1.21.x ──────────────────────────────────────────────
+          - mc: "1.21.1"
+            fabric: "0.116.5+1.21.1"
+            loader: "0.16.10"
+            loom:   "1.9.2"
+            java:   "21"
+            gradle: "8.8"
+
+          - mc: "1.21.4"
+            fabric: "0.114.0+1.21.4"
+            loader: "0.16.10"
+            loom:   "1.9.2"
+            java:   "21"
+            gradle: "8.8"
+
+          - mc: "1.21.5"
+            fabric: "0.128.1+1.21.5"
+            loader: "0.16.10"
+            loom:   "1.10"
+            java:   "21"
+            gradle: "8.14"
+
+          - mc: "1.21.6"
+            fabric: "0.128.1+1.21.6"
+            loader: "0.16.14"
+            loom:   "1.10"
+            java:   "21"
+            gradle: "8.14"
+
+          - mc: "1.21.7"
+            fabric: "0.128.2+1.21.7"
+            loader: "0.16.14"
+            loom:   "1.10"
+            java:   "21"
+            gradle: "8.14"
+
+          - mc: "1.21.8"
+            fabric: "0.136.1+1.21.8"
+            loader: "0.16.14"
+            loom:   "1.10"
+            java:   "21"
+            gradle: "8.14"
+
+          - mc: "1.21.9"
+            fabric: "0.134.1+1.21.9"
+            loader: "0.17.2"
+            loom:   "1.11"
+            java:   "21"
+            gradle: "8.14"
+
     steps:
       - uses: actions/checkout@v4
 
-      # Java 21 — wajib untuk 1.20.x dan 1.21.x
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: ${{ matrix.java }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.14'
+          gradle-version: ${{ matrix.gradle }}
 
       - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.14
+        run: gradle wrapper --gradle-version ${{ matrix.gradle }}
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      # Override gradle.properties sesuai versi matrix
+      - name: Override gradle.properties
+        run: |
+          sed -i "s/^minecraft_version=.*/minecraft_version=${{ matrix.mc }}/"   gradle.properties
+          sed -i "s/^fabric_version=.*/fabric_version=${{ matrix.fabric }}/"     gradle.properties
+          sed -i "s/^loader_version=.*/loader_version=${{ matrix.loader }}/"     gradle.properties
+          sed -i "s/^loom_version=.*/loom_version=${{ matrix.loom }}/"           gradle.properties
+
+      # Untuk 1.20.1 (Java 17): turunkan release target di build.gradle
+      - name: Set Java release target for 1.20.1
+        if: matrix.mc == '1.20.1'
+        run: sed -i "s/it.options.release = 21/it.options.release = 17/" build.gradle
+
       - name: Build mod
         run: ./gradlew build
 
-      - name: Upload artifact
+      # Rename jar agar nama file mencantumkan versi MC
+      - name: Rename jar
+        run: |
+          mkdir -p staging
+          for f in build/libs/*.jar; do
+            [[ "$f" == *-sources* ]] && continue
+            cp "$f" "staging/qtoggle-${{ matrix.mc }}-1.0.0.jar"
+          done
+
+      - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
-          name: qtoggle-jar
-          path: build/libs/*.jar
+          name: jar-${{ matrix.mc }}
+          path: staging/*.jar
+
+  # ─────────────────────────────────────────
+  # 2. Kumpulkan semua jar → 1 ZIP
+  # ─────────────────────────────────────────
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download semua jar
+        uses: actions/download-artifact@v4
+        with:
+          pattern: jar-*
+          merge-multiple: true
+          path: all-jars
+
+      - name: Buat ZIP
+        run: |
+          cd all-jars
+          zip -j "../Q Toggle 1.20.1-1.21.9 (1.0.0).zip" *.jar
+          cd ..
+          ls -lh "Q Toggle 1.20.1-1.21.9 (1.0.0).zip"
+
+      - name: Upload ZIP final
+        uses: actions/upload-artifact@v4
+        with:
+          name: "Q Toggle 1.20.1-1.21.9 (1.0.0)"
+          path: "Q Toggle 1.20.1-1.21.9 (1.0.0).zip"
