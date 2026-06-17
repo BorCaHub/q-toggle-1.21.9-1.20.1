@@ -1,5 +1,6 @@
 pluginManagement {
 	repositories {
+		// Fabric Maven — untuk Loom plugin itu sendiri
 		maven {
 			name = 'Fabric'
 			url  = 'https://maven.fabricmc.net/'
@@ -9,9 +10,20 @@ pluginManagement {
 	}
 }
 
-// Catatan: Di Gradle 7/8 (yang dipakai 1.20.x–1.21.x),
-// dependencyResolutionManagement TIDAK diperlukan karena Loom
-// sudah inject repo Mojang & Fabric lewat pluginManagement.
-// Tambahkan repo extra di sini hanya jika benar-benar dibutuhkan.
+dependencyResolutionManagement {
+	repositories {
+		// Fabric Maven — untuk Fabric API & Loader
+		maven {
+			name = 'Fabric'
+			url  = 'https://maven.fabricmc.net/'
+		}
+		// Mojang Maven — untuk Minecraft jar dan libraries
+		maven {
+			name = 'Mojang'
+			url  = 'https://libraries.minecraft.net/'
+		}
+		mavenCentral()
+	}
+}
 
 rootProject.name = 'qtoggle-mod'
