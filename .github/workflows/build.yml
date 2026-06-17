@@ -3,16 +3,12 @@ name: Build Q Toggle All Versions
 on: [push, workflow_dispatch]
 
 jobs:
-  # ─────────────────────────────────────────
-  # 1. Build masing-masing versi Minecraft
-  # ─────────────────────────────────────────
   build:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          # ── 1.20.x ──────────────────────────────────────────────
           - mc: "1.20.1"
             fabric: "0.92.2+1.20.1"
             loader: "0.14.21"
@@ -41,7 +37,6 @@ jobs:
             java:   "21"
             gradle: "8.8"
 
-          # ── 1.21.x ──────────────────────────────────────────────
           - mc: "1.21"
             fabric: "0.100.1+1.21"
             loader: "0.15.11"
@@ -106,23 +101,17 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
 
-      # gradlew tidak ada di repo → download binary Gradle langsung dari releases,
-      # ekstrak, jadikan ./gradlew. Cara ini bypass "gradle wrapper" task yang
-      # conflict dengan settings.gradle (dependencyResolutionManagement).
-      - name: Install gradlew
-        run: |
-          VER="${{ matrix.gradle }}"
-          ZIP="gradle-${VER}-bin.zip"
-          curl -fL "https://services.gradle.org/distributions/${ZIP}" -o /tmp/${ZIP}
-          unzip -q /tmp/${ZIP} -d /tmp/gradle-dist
-          cp /tmp/gradle-dist/gradle-${VER}/bin/gradle ./gradlew
-          chmod +x ./gradlew
-          # Tulis gradle-wrapper.properties agar setup-gradle bisa cache dengan benar
-          mkdir -p gradle/wrapper
-          printf 'distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-%s-bin.zip\nnetworkTimeout=10000\nvalidateDistributionUrl=true\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n' "${VER}" > gradle/wrapper/gradle-wrapper.properties
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # Patch gradle-wrapper.properties ke versi matrix
+      - name: Override Gradle wrapper version
+        run: |
+          sed -i "s|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-${{ matrix.gradle }}-bin.zip|" \
+            gradle/wrapper/gradle-wrapper.properties
 
       # Override gradle.properties sesuai versi matrix
       - name: Override gradle.properties
@@ -132,7 +121,6 @@ jobs:
           sed -i "s/^loader_version=.*/loader_version=${{ matrix.loader }}/"     gradle.properties
           sed -i "s/^loom_version=.*/loom_version=${{ matrix.loom }}/"           gradle.properties
 
-      # Untuk 1.20.1 (Java 17): turunkan release target di build.gradle
       - name: Set Java release target for 1.20.1
         if: matrix.mc == '1.20.1'
         run: sed -i "s/it.options.release = 21/it.options.release = 17/" build.gradle
@@ -140,7 +128,6 @@ jobs:
       - name: Build mod
         run: ./gradlew build
 
-      # Rename jar agar nama file mencantumkan versi MC
       - name: Rename jar
         run: |
           mkdir -p staging
@@ -155,9 +142,6 @@ jobs:
           name: jar-${{ matrix.mc }}
           path: staging/*.jar
 
-  # ─────────────────────────────────────────
-  # 2. Kumpulkan semua jar → 1 ZIP
-  # ─────────────────────────────────────────
   package:
     needs: build
     runs-on: ubuntu-latest
