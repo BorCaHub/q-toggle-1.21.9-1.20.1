@@ -18,10 +18,6 @@ java {
 	withSourcesJar()
 }
 
-repositories {
-	// Loom sudah menambahkan repo Mojang & Fabric secara otomatis.
-	// Kalau ada dependency tambahan, tambahkan di sini.
-}
 
 dependencies {
 	// Minecraft & mappings — WAJIB ada baris mappings agar modImplementation bekerja
