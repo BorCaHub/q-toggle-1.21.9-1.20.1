@@ -14,29 +14,11 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      # Pin Gradle yang dipakai untuk men-generate wrapper.
-      #
-      # - Untuk Minecraft 1.20.1 s/d 1.21.9 (loom_version 1.4.2 s/d 1.11):
-      #     gradle-version: '8.14'
-      # - Untuk Minecraft 1.21.10 dan 1.21.11 (loom_version 1.14+):
-      #     gradle-version: '9.2'   <-- WAJIB diganti, Loom 1.14+ tidak
-      #                                 mendukung Gradle 8.x lagi.
-      #
-      # Tanpa pin ini, action akan memasang Gradle terbaru di runner
-      # (saat ini 9.5.1), yang bisa gagal resolve plugin Loom versi lama
-      # karena Gradle versi tersebut belum tentu cocok dengan metadata
-      # plugin marker yang dipublish Fabric Maven untuk versi Loom lama.
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14'
 
-      # Generate wrapper menggunakan Gradle versi yang sama dengan di atas,
-      # supaya resolusi plugin Loom konsisten antara tahap ini dan saat
-      # ./gradlew build dijalankan nanti.
-      #
-      # Samakan angka --gradle-version di sini dengan gradle-version pada
-      # step "Setup Gradle" di atas.
       - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version 8.14
 
