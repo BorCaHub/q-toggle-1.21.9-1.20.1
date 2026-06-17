@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "qtoggle",
+  "version": "${version}",
+  "name": "Q Toggle (Drop Lock)",
+  "description": "The Q key does not drop items by default. Press the toggle keybind (default: G) to enable or disable drop mode. When enabled, Q drops items normally like vanilla.",
+  "authors": ["Ghozaa"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/qtoggle/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.example.qtoggle.QToggleClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": ">=1.20 <1.22",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
