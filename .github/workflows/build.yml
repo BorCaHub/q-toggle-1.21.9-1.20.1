@@ -1,0 +1,35 @@
+name: Build Mod
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Java 21 — wajib untuk 1.20.x dan 1.21.x
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Gradle 8.x — direkomendasikan untuk Loom 1.6–1.9
+      # (Loom 1.9+ juga mendukung Gradle 9 jika mau upgrade)
+      - name: Generate Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.14
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build mod
+        run: ./gradlew build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qtoggle-jar
+          path: build/libs/*.jar
