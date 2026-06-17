@@ -56,9 +56,15 @@ public class QToggleClient implements ClientModInitializer {
             // Jika mode DROP LOCKED: batalkan semua input Q
             if (!dropEnabled) {
                 Options options = client.options;
+                
+                // Ambil keybinding Q drop dengan null safety
                 KeyMapping dropKey = options.keyDrop;
-                dropKey.setDown(false);
-                while (dropKey.consumeClick()) { /* buang antrian klik */ }
+                if (dropKey != null) {
+                    // Pastikan key tidak aktif
+                    dropKey.setDown(false);
+                    // Buang semua antrian klik pada key tersebut
+                    while (dropKey.consumeClick()) { }
+                }
             }
         });
     }
