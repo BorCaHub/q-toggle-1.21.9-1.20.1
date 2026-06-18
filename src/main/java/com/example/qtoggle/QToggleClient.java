@@ -1,142 +1,117 @@
-package com.example.qtoggle;
+name: Build Q Toggle (1.20.x & 1.21.x grouped)
 
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.KeyMapping;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.Options;
-import com.mojang.blaze3d.platform.InputConstants;
-import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
+on: [push, workflow_dispatch]
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Grup 1.20.x — dicompile terhadap versi TERTUA (1.20.1) supaya
+          # symbol yang dipakai dijamin ada di seluruh rentang 1.20.1-1.20.6.
+          - group:  "1.20.x"
+            mc:     "1.20.1"
+            fabric: "0.92.2+1.20.1"
+            loader: "0.14.21"
+            loom:   "1.4.2"
+            java:   "17"
+            gradle: "8.8"
+            range:  ">=1.20.1 <1.21"
 
-/**
- * QToggle — Fabric mod, SATU jar dipakai untuk SELURUH versi dalam satu grup:
- *   - jar "1.20.x" → jalan di 1.20.1, 1.20.2, 1.20.4, 1.20.6
- *   - jar "1.21.x" → jalan di 1.21, 1.21.1, 1.21.4, 1.21.5, 1.21.6, 1.21.7, 1.21.8, 1.21.9
- *
- * KENAPA PAKAI REFLECTION DI SINI:
- * Mojang mengganti signature constructor KeyMapping di sekitar 1.21.9:
- *   - 1.21 s.d. 1.21.8 : KeyMapping(String, InputConstants.Type, int, String)
- *   - 1.21.9+          : KeyMapping(String, InputConstants.Type, int, KeyMapping.Category)
- *
- * Jar ini dicompile SEKALI (terhadap versi tertua di grupnya: 1.20.1 atau 1.21)
- * tapi harus tetap jalan di semua versi lain dalam grup itu. Karena itu kita
- * tidak boleh hardcode constructor mana yang dipakai di compile time — dua
- * bentuk constructor dicoba lewat reflection saat mod diinisialisasi, dan
- * yang cocok dengan API runtime yang sedang berjalan otomatis dipakai.
- *
- * Field Options.keyDrop juga diakses lewat reflection sebagai jaga-jaga kalau
- * suatu versi MC mengganti nama field itu — kalau tidak ketemu, fitur Q-lock
- * untuk versi tersebut otomatis nonaktif (mod tetap load, tidak crash).
- *
- * CATATAN JUJUR: pendekatan ini menutup celah yang SUDAH terbukti berubah
- * (KeyMapping.Category). Tidak ada jaminan 100% tidak ada API lain yang juga
- * berubah di versi-versi tersebut — disarankan tetap dites manual di ujung
- * tertua dan ujung terbaru tiap grup sebelum dirilis.
- */
-public class QToggleClient implements ClientModInitializer {
+          # Grup 1.21.x — dicompile terhadap versi TERTUA (1.21) supaya
+          # symbol yang dipakai dijamin ada di seluruh rentang 1.21-1.21.9.
+          # Constructor KeyMapping yang berubah di 1.21.9 ditangani lewat
+          # reflection di QToggleClient.java, bukan di sini.
+          - group:  "1.21.x"
+            mc:     "1.21"
+            fabric: "0.100.1+1.21"
+            loader: "0.15.11"
+            loom:   "1.7.4"
+            java:   "21"
+            gradle: "8.8"
+            range:  ">=1.21 <1.22"
 
-    /** true = Q drop normal; false (default) = Q dikunci */
-    public static boolean dropEnabled = false;
+    steps:
+      - uses: actions/checkout@v4
 
-    private static KeyMapping toggleKey;
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
 
-    @Override
-    public void onInitializeClient() {
-        toggleKey = KeyBindingHelper.registerKeyBinding(createToggleKeyMapping());
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ matrix.gradle }}
 
-        ClientTickEvents.START_CLIENT_TICK.register(client -> {
-            if (client.player == null) return;
+      - name: Generate Gradle wrapper
+        run: gradle wrapper --gradle-version ${{ matrix.gradle }}
 
-            // Cek apakah tombol toggle ditekan
-            while (toggleKey.consumeClick()) {
-                dropEnabled = !dropEnabled;
-                showStatus(client, dropEnabled);
-            }
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
 
-            // Jika mode DROP LOCKED: batalkan semua input Q
-            if (!dropEnabled) {
-                KeyMapping dropKey = getDropKeyMapping(client.options);
-                if (dropKey != null) {
-                    dropKey.setDown(false);
-                    while (dropKey.consumeClick()) { }
-                }
-            }
-        });
-    }
+      - name: Override Gradle wrapper version
+        run: |
+          sed -i "s|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-${{ matrix.gradle }}-bin.zip|" \
+            gradle/wrapper/gradle-wrapper.properties
 
-    /**
-     * Membuat KeyMapping untuk toggle dengan mencoba dua bentuk constructor
-     * yang dipakai Mojang di rentang versi berbeda. Bentuk lama (String
-     * category) dicoba duluan karena dipakai di rentang versi yang lebih luas
-     * (1.20.x - 1.21.8); bentuk baru (Category enum, 1.21.9+) jadi fallback.
-     */
-    private static KeyMapping createToggleKeyMapping() {
-        final String translationKey = "key.qtoggle.toggle";
-        final String categoryName = "key.category.qtoggle.main";
+      - name: Override gradle.properties
+        run: |
+          sed -i "s/^minecraft_version=.*/minecraft_version=${{ matrix.mc }}/"   gradle.properties
+          sed -i "s/^fabric_version=.*/fabric_version=${{ matrix.fabric }}/"     gradle.properties
+          sed -i "s/^loader_version=.*/loader_version=${{ matrix.loader }}/"     gradle.properties
+          sed -i "s/^loom_version=.*/loom_version=${{ matrix.loom }}/"           gradle.properties
 
-        // Bentuk lama: KeyMapping(String, InputConstants.Type, int, String)
-        try {
-            Constructor<KeyMapping> ctor = KeyMapping.class.getConstructor(
-                    String.class, InputConstants.Type.class, int.class, String.class);
-            return ctor.newInstance(translationKey, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, categoryName);
-        } catch (NoSuchMethodException ignored) {
-            // tidak ada di versi ini, lanjut coba bentuk baru
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException("[QToggle] Gagal membuat KeyMapping lewat constructor lama (String category)", e);
-        }
+      - name: Set Java release target sesuai grup
+        run: sed -i "s/it.options.release = .*/it.options.release = ${{ matrix.java }}/" build.gradle
 
-        // Bentuk baru (1.21.9+): KeyMapping(String, InputConstants.Type, int, KeyMapping.Category)
-        try {
-            for (Class<?> inner : KeyMapping.class.getDeclaredClasses()) {
-                if (inner.isEnum() && inner.getSimpleName().equals("Category")) {
-                    Object categoryValue = null;
-                    for (Object constant : inner.getEnumConstants()) {
-                        if (((Enum<?>) constant).name().equals("MISC")) {
-                            categoryValue = constant;
-                            break;
-                        }
-                    }
-                    if (categoryValue == null && inner.getEnumConstants().length > 0) {
-                        categoryValue = inner.getEnumConstants()[0];
-                    }
-                    Constructor<KeyMapping> ctor = KeyMapping.class.getConstructor(
-                            String.class, InputConstants.Type.class, int.class, inner);
-                    return ctor.newInstance(translationKey, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, categoryValue);
-                }
-            }
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException("[QToggle] Gagal membuat KeyMapping lewat constructor baru (Category)", e);
-        }
+      - name: Set rentang versi Minecraft di fabric.mod.json
+        run: sed -i "s/\"minecraft\": \">=1.20\"/\"minecraft\": \"${{ matrix.range }}\"/" src/main/resources/fabric.mod.json
 
-        throw new IllegalStateException("[QToggle] Tidak menemukan constructor KeyMapping yang cocok di versi Minecraft ini");
-    }
+      - name: Clean Gradle cache
+        run: |
+          rm -rf ~/.gradle/caches/modules-2/files-2.1/net.fabricmc/
+          rm -rf .gradle/loom-cache/
 
-    /**
-     * Mengambil field Options.keyDrop lewat reflection. Kalau nama field
-     * berubah di versi tertentu, return null supaya mod tidak crash — fitur
-     * Q-lock untuk versi itu otomatis nonaktif sampai diperbaiki manual.
-     */
-    private static KeyMapping getDropKeyMapping(Options options) {
-        try {
-            Field field = Options.class.getField("keyDrop");
-            Object value = field.get(options);
-            return value instanceof KeyMapping ? (KeyMapping) value : null;
-        } catch (ReflectiveOperationException e) {
-            return null;
-        }
-    }
+      - name: Build mod
+        run: ./gradlew clean build --info
 
-    private void showStatus(Minecraft client, boolean active) {
-        if (client.player == null) return;
-        String message = active
-                ? "§a[Q Toggle] DROP: ENABLED — Q drops items"
-                : "§c[Q Toggle] DROP: LOCKED — Q will not drop";
-        // setOverlayMessage tersedia sejak 1.17 dan tetap ada di 1.20/1.21
-        client.gui.setOverlayMessage(Component.literal(message), false);
-    }
-}
+      - name: Rename jar
+        run: |
+          mkdir -p staging
+          for f in build/libs/*.jar; do
+            [[ "$f" == *-sources* ]] && continue
+            cp "$f" "staging/qtoggle-${{ matrix.group }}-1.0.0.jar"
+          done
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-${{ matrix.group }}
+          path: staging/*.jar
+
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download semua jar
+        uses: actions/download-artifact@v4
+        with:
+          pattern: jar-*
+          merge-multiple: true
+          path: all-jars
+
+      - name: Buat ZIP
+        run: |
+          cd all-jars
+          zip -j "../Q Toggle 1.20.x + 1.21.x (1.0.0).zip" *.jar
+          cd ..
+          ls -lh "Q Toggle 1.20.x + 1.21.x (1.0.0).zip"
+
+      - name: Upload ZIP final
+        uses: actions/upload-artifact@v4
+        with:
+          name: "Q Toggle 1.20.x + 1.21.x (1.0.0)"
+          path: "Q Toggle 1.20.x + 1.21.x (1.0.0).zip"
