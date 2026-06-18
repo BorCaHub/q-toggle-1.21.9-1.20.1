@@ -15,7 +15,9 @@ import org.lwjgl.glfw.GLFW;
  *
  * Perbedaan dari versi 26.1:
  * ─ KeyMappingHelper  → KeyBindingHelper  (nama API di 1.20/1.21)
- * ─ KeyMapping.Category.register() tidak ada → pakai String kategori langsung
+ * ─ KeyMapping.Category support berbeda per versi:
+ *   • 1.20.x: String langsung di constructor
+ *   • 1.21.9: KeyMapping.Category enum
  * ─ Mappings kembali ke obfuscated (Mojang official), jadi nama class/method
  *   sama di semua versi 1.20.x dan 1.21.x
  * ─ Java 21 (bukan 25)
@@ -28,20 +30,17 @@ public class QToggleClient implements ClientModInitializer {
 
     private static KeyMapping toggleKey;
 
-    // Nama kategori di Controls menu
-    // Harus cocok dengan key di en_us.json: "key.category.qtoggle.main"
-    private static final String CATEGORY = "key.category.qtoggle.main";
-
     @Override
     public void onInitializeClient() {
 
-        // Di 1.20.x / 1.21.x: KeyBindingHelper.registerKeyBinding()
-        // Konstruktor KeyMapping: (translationKey, type, keyCode, categoryTranslationKey)
+        // Di 1.21.9: gunakan KeyMapping.Category.MISC
+        // Di 1.20.x: gunakan String kategori langsung
+        // Untuk compatibility, kita gunakan constructor dengan Category untuk 1.21.9
         toggleKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-                "key.qtoggle.toggle",          // translation key — cocok dengan lang/*.json
+                "key.qtoggle.toggle",                    // translation key
                 InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_G,               // default: G
-                CATEGORY                        // kategori di Options > Controls
+                GLFW.GLFW_KEY_G,                         // default: G
+                KeyMapping.Category.MISC                 // kategori di Options > Controls (1.21.9+)
         ));
 
         ClientTickEvents.START_CLIENT_TICK.register(client -> {
